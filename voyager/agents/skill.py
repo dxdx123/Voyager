@@ -1,7 +1,7 @@
 import os
 
 import voyager.utils as U
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.vectorstores import Chroma
@@ -19,12 +19,23 @@ class SkillManager:
         request_timout=120,
         ckpt_dir="ckpt",
         resume=False,
+
+        deployment_name="",
+        openai_api_version="",
+        openai_api_key="",
+        openai_api_base="",
     ):
-        self.llm = ChatOpenAI(
+        self.llm = AzureChatOpenAI(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
+
+            deployment_name=deployment_name,
+            openai_api_version=openai_api_version,
+            openai_api_key=openai_api_key,
+            openai_api_base=openai_api_base,
         )
+
         U.f_mkdir(f"{ckpt_dir}/skill/code")
         U.f_mkdir(f"{ckpt_dir}/skill/description")
         U.f_mkdir(f"{ckpt_dir}/skill/vectordb")

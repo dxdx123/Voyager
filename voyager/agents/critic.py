@@ -1,6 +1,6 @@
 from voyager.prompts import load_prompt
 from voyager.utils.json_utils import fix_and_parse_json
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.schema import HumanMessage, SystemMessage
 
 
@@ -11,11 +11,21 @@ class CriticAgent:
         temperature=0,
         request_timout=120,
         mode="auto",
+
+        deployment_name="",
+        openai_api_version="",
+        openai_api_key="",
+        openai_api_base="",
     ):
-        self.llm = ChatOpenAI(
+        self.llm = AzureChatOpenAI(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
+
+            deployment_name=deployment_name,
+            openai_api_version=openai_api_version,
+            openai_api_key=openai_api_key,
+            openai_api_base=openai_api_base,
         )
         assert mode in ["auto", "manual"]
         self.mode = mode
