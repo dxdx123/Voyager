@@ -46,13 +46,8 @@ class Voyager:
         skill_manager_retrieval_top_k: int = 5,
         openai_api_request_timeout: int = 240,
         ckpt_dir: str = "ckpt",
+        skill_library_dir: str = None,
         resume: bool = False,
-
-        openai_api_base: str = "",
-        openai_api_version: str = "",
-        deployment_name: str = "",
-        deployment_name_embedding: str = "",
-        deployment_name_gpt35: str = "",
     ):
         """
         The main class for Voyager.
@@ -102,6 +97,7 @@ class Voyager:
         :param skill_manager_retrieval_top_k: how many skills to retrieve for each task
         :param openai_api_request_timeout: how many seconds to wait for openai api
         :param ckpt_dir: checkpoint dir
+        :param skill_library_dir: skill library dir
         :param resume: whether to resume from checkpoint
         """
         # init env
@@ -117,25 +113,22 @@ class Voyager:
 
         # set openai api key
         os.environ["OPENAI_API_KEY"] = openai_api_key
-        os.environ["OPENAI_API_BASE"] = openai_api_base
-        os.environ["OPENAI_API_VERSION"] = openai_api_version
 
         # init agents
         self.action_agent = ActionAgent(
-            # model_name=action_agent_model_name,
+            model_name=action_agent_model_name,
             temperature=action_agent_temperature,
             request_timout=openai_api_request_timeout,
             ckpt_dir=ckpt_dir,
             resume=resume,
             chat_log=action_agent_show_chat_log,
             execution_error=action_agent_show_execution_error,
-            deployment_name=deployment_name,
         )
         self.action_agent_task_max_retries = action_agent_task_max_retries
         self.curriculum_agent = CurriculumAgent(
-            # model_name=curriculum_agent_model_name,
+            model_name=curriculum_agent_model_name,
             temperature=curriculum_agent_temperature,
-            qa_model_name=deployment_name_gpt35,
+            qa_model_name=curriculum_agent_qa_model_name,
             qa_temperature=curriculum_agent_qa_temperature,
             request_timout=openai_api_request_timeout,
             ckpt_dir=ckpt_dir,
@@ -143,24 +136,20 @@ class Voyager:
             mode=curriculum_agent_mode,
             warm_up=curriculum_agent_warm_up,
             core_inventory_items=curriculum_agent_core_inventory_items,
-            deployment_name=deployment_name,
-            deployment_name_gpt35=deployment_name_gpt35,
         )
         self.critic_agent = CriticAgent(
-            # model_name=critic_agent_model_name,
+            model_name=critic_agent_model_name,
             temperature=critic_agent_temperature,
             request_timout=openai_api_request_timeout,
             mode=critic_agent_mode,
-            deployment_name=deployment_name,
         )
         self.skill_manager = SkillManager(
-            # model_name=deployment_name_gpt35,
+            model_name=skill_manager_model_name,
             temperature=skill_manager_temperature,
             retrieval_top_k=skill_manager_retrieval_top_k,
             request_timout=openai_api_request_timeout,
-            ckpt_dir=ckpt_dir,
-            resume=resume,
-            deployment_name_gpt35=deployment_name_gpt35,
+            ckpt_dir=skill_library_dir if skill_library_dir else ckpt_dir,
+            resume=True if resume or skill_library_dir else False,
         )
         self.recorder = U.EventRecorder(ckpt_dir=ckpt_dir, resume=resume)
         self.resume = resume
@@ -390,9 +379,21 @@ class Voyager:
             "control_primitives": self.skill_manager.skills,
         }
 
-    def inference(
-        self, task, reset_mode="hard", reset_env=True, early_stop=False, sub_tasks=None
-    ):
+    def decompose_task(self, task):
+        if not self.last_events:
+            self.last_events = self.env.reset(
+                options={
+                    "mode": "hard",
+                    "wait_ticks": self.env_wait_ticks,
+                }
+            )
+        return self.curriculum_agent.decompose_task(task, self.last_events)
+
+    def inference(self, task=None, sub_goals=[], reset_mode="hard", reset_env=True):
+        if not task and not sub_goals:
+            raise ValueError("Either task or sub_goals must be provided")
+        if not sub_goals:
+            sub_goals = self.decompose_task(task)
         self.env.reset(
             options={
                 "mode": reset_mode,
@@ -402,12 +403,8 @@ class Voyager:
         self.curriculum_agent.completed_tasks = []
         self.curriculum_agent.failed_tasks = []
         self.last_events = self.env.step("")
-        if not sub_tasks:
-            sub_tasks = self.curriculum_agent.decompose_task(task, self.last_events)
-        iter_without_new_item = 0
-        last_item_history = set()
-        while self.curriculum_agent.progress < len(sub_tasks):
-            next_task = sub_tasks[self.curriculum_agent.progress]
+        while self.curriculum_agent.progress < len(sub_goals):
+            next_task = sub_goals[self.curriculum_agent.progress]
             context = self.curriculum_agent.get_task_context(next_task)
             print(
                 f"\033[35mStarting task {next_task} for at most {self.action_agent_task_max_retries} times\033[0m"
@@ -417,14 +414,6 @@ class Voyager:
                 context=context,
                 reset_env=reset_env,
             )
-            if not self.recorder.item_history - last_item_history:
-                iter_without_new_item += 1
-            else:
-                iter_without_new_item = 0
-            last_item_history = self.recorder.item_history.copy()
-            if iter_without_new_item >= 3 and early_stop:
-                print("Early stop")
-                break
             if info["success"]:
                 print(f"\033[35mCompleted task {next_task}.\033[0m")
                 self.curriculum_agent.completed_tasks.append(next_task)
