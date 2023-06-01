@@ -129,3 +129,5 @@ plot_iter.py
 *.svg
 
 node_modules
+package-lock.json
+Test.py
