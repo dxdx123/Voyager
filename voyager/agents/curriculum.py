@@ -6,7 +6,7 @@ import re
 import voyager.utils as U
 from voyager.prompts import load_prompt
 from voyager.utils.json_utils import fix_and_parse_json
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.vectorstores import Chroma
@@ -25,16 +25,23 @@ class CurriculumAgent:
         mode="auto",
         warm_up=None,
         core_inventory_items: str | None = None,
+
+            deployment_name="",
+            deployment_name_gpt35="",
     ):
-        self.llm = ChatOpenAI(
-            model_name=model_name,
+        self.llm = AzureChatOpenAI(
+            # model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
+
+            deployment_name=deployment_name,
         )
-        self.qa_llm = ChatOpenAI(
-            model_name=qa_model_name,
+        self.qa_llm = AzureChatOpenAI(
+            # model_name=model_name,
             temperature=qa_temperature,
             request_timeout=request_timout,
+
+            deployment_name=deployment_name_gpt35,
         )
         assert mode in [
             "auto",
@@ -57,7 +64,7 @@ class CurriculumAgent:
         # vectordb for qa cache
         self.qa_cache_questions_vectordb = Chroma(
             collection_name="qa_cache_questions_vectordb",
-            embedding_function=OpenAIEmbeddings(),
+            embedding_function=OpenAIEmbeddings(deployment="embe"),
             persist_directory=f"{ckpt_dir}/curriculum/vectordb",
         )
         assert self.qa_cache_questions_vectordb._collection.count() == len(

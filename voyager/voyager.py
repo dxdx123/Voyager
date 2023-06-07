@@ -48,6 +48,12 @@ class Voyager:
         ckpt_dir: str = "ckpt",
         skill_library_dir: str = None,
         resume: bool = False,
+
+            openai_api_base: str = "",
+            openai_api_version: str = "",
+            deployment_name: str = "",
+            deployment_name_embedding: str = "",
+            deployment_name_gpt35: str = "",
     ):
         """
         The main class for Voyager.
@@ -113,22 +119,26 @@ class Voyager:
 
         # set openai api key
         os.environ["OPENAI_API_KEY"] = openai_api_key
+        os.environ["OPENAI_API_BASE"] = openai_api_base
+        os.environ["OPENAI_API_VERSION"] = openai_api_version
 
         # init agents
         self.action_agent = ActionAgent(
-            model_name=action_agent_model_name,
+            # model_name=action_agent_model_name,
             temperature=action_agent_temperature,
             request_timout=openai_api_request_timeout,
             ckpt_dir=ckpt_dir,
             resume=resume,
             chat_log=action_agent_show_chat_log,
             execution_error=action_agent_show_execution_error,
+
+            deployment_name=deployment_name,
         )
         self.action_agent_task_max_retries = action_agent_task_max_retries
         self.curriculum_agent = CurriculumAgent(
-            model_name=curriculum_agent_model_name,
+            # model_name=curriculum_agent_model_name,
             temperature=curriculum_agent_temperature,
-            qa_model_name=curriculum_agent_qa_model_name,
+            qa_model_name=deployment_name_gpt35,
             qa_temperature=curriculum_agent_qa_temperature,
             request_timout=openai_api_request_timeout,
             ckpt_dir=ckpt_dir,
@@ -136,20 +146,27 @@ class Voyager:
             mode=curriculum_agent_mode,
             warm_up=curriculum_agent_warm_up,
             core_inventory_items=curriculum_agent_core_inventory_items,
+
+            deployment_name=deployment_name,
+            deployment_name_gpt35=deployment_name_gpt35,
         )
         self.critic_agent = CriticAgent(
-            model_name=critic_agent_model_name,
+            # model_name=critic_agent_model_name,
             temperature=critic_agent_temperature,
             request_timout=openai_api_request_timeout,
             mode=critic_agent_mode,
+
+            deployment_name=deployment_name,
         )
         self.skill_manager = SkillManager(
-            model_name=skill_manager_model_name,
+            # model_name=skill_manager_model_name,
             temperature=skill_manager_temperature,
             retrieval_top_k=skill_manager_retrieval_top_k,
             request_timout=openai_api_request_timeout,
             ckpt_dir=skill_library_dir if skill_library_dir else ckpt_dir,
             resume=True if resume or skill_library_dir else False,
+
+            deployment_name_gpt35=deployment_name_gpt35,
         )
         self.recorder = U.EventRecorder(ckpt_dir=ckpt_dir, resume=resume)
         self.resume = resume
