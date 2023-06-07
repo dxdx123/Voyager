@@ -127,3 +127,7 @@ debug_*
 logs/
 plot_iter.py
 *.svg
+
+node_modules
+Test.py
+package-lock.json
